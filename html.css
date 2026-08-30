@@ -1,52 +1,161 @@
-<!-- index.html -->
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>King Morolong III Management Suite</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 0; padding: 0;
-      background-color: #f4f4f4;
-    }
-    header {
-      background-color: #2c3e50;
-      color: white;
-      padding: 20px;
-      text-align: center;
-    }
-    nav {
-      display: flex;
-      justify-content: center;
-      background-color: #34495e;
-    }
-    nav a {
-      padding: 14px 20px;
-      color: white;
-      text-decoration: none;
-    }
-    nav a:hover {
-      background-color: #2980b9;
-    }
-    main {
-      padding: 20px;
-    }
-  </style>
-</head>
-<body>
-  <header>
-    <h1>King Morolong III Management Suite</h1>
-  </header>
-  <nav>
-    <a href="#mining">Mining</a>
-    <a href="#agriculture">Agriculture</a>
-    <a href="#clans">Clan Kings</a>
-  </nav>
-  <main>
-    <h2>Welcome to the Management Platform</h2>
-    <p>This platform will help manage economic initiatives for the kingdom.</p>
-  </main>
-</body>
-</html>
+-- ============================================================
+-- Bo Tholo Hub — Supabase schema
+-- Paste this whole file into Supabase > SQL Editor > Run
+-- ============================================================
+
+-- 1. Core data tables
+-- --------------------------------------------------------------
+
+create table if not exists mines (
+  id bigint generated always as identity primary key,
+  name text not null,
+  commodity text,
+  operator text,
+  district text,
+  status text check (status in ('Active','Pending','Closed')) default 'Pending',
+  traditional_leader text,
+  trust_name text,
+  latitude numeric,
+  longitude numeric,
+  notes text,
+  source text,
+  verified boolean default false,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create table if not exists trusts (
+  id bigint generated always as identity primary key,
+  name text not null,
+  associated_mine text,
+  status text,
+  executive_summary text,
+  notes text,
+  source text,
+  verified boolean default false,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create table if not exists projects (
+  id bigint generated always as identity primary key,
+  name text not null,
+  funder text,
+  amount text,
+  year int,
+  beneficiaries text,
+  duration text,
+  status text check (status in ('Active','Pending','Complete')) default 'Pending',
+  notes text,
+  source text,
+  verified boolean default false,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create table if not exists permits (
+  id bigint generated always as identity primary key,
+  holder text,
+  type text,
+  commodity text,
+  area text,
+  status text check (status in ('Granted','Pending','Lapsed')) default 'Pending',
+  valid_from date,
+  valid_to date,
+  notes text,
+  source text,
+  verified boolean default false,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create table if not exists leadership (
+  id bigint generated always as identity primary key,
+  name text not null,
+  title text,
+  area text,
+  status text,
+  notes text,
+  source text,
+  verified boolean default false,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+-- 2. Public "suggest an edit / addition" queue
+--    Anyone can insert here; nothing here is public-facing
+--    on the live tables until an admin approves and copies it over.
+-- --------------------------------------------------------------
+
+create table if not exists suggestions (
+  id bigint generated always as identity primary key,
+  target_table text not null check (target_table in ('mines','trusts','projects','permits','leadership')),
+  target_row_id bigint, -- null = new record suggestion, set = edit to existing row
+  payload jsonb not null, -- the suggested field values as JSON
+  submitter_name text,
+  submitter_contact text,
+  status text check (status in ('pending','approved','rejected')) default 'pending',
+  admin_notes text,
+  created_at timestamptz default now()
+);
+
+-- 3. Admin role
+--    We use Supabase's built-in auth.users + a simple admins table
+--    to mark which logged-in accounts are allowed to write directly.
+-- --------------------------------------------------------------
+
+create table if not exists admins (
+  user_id uuid primary key references auth.users(id) on delete cascade
+);
+
+-- After creating your login in Authentication > Users, run this once
+-- (replace with your real user id, found on that same Users page):
+--
+-- insert into admins (user_id) values ('paste-your-user-id-here');
+
+create or replace function is_admin()
+returns boolean
+language sql
+security definer
+stable
+as $$
+  select exists (
+    select 1 from admins where user_id = auth.uid()
+  );
+$$;
+
+-- 4. Row Level Security
+--    Public can READ everything on the data tables.
+--    Only admins can INSERT/UPDATE/DELETE on the data tables.
+--    Anyone can INSERT into suggestions; only admins can read/manage them.
+-- --------------------------------------------------------------
+
+alter table mines enable row level security;
+alter table trusts enable row level security;
+alter table projects enable row level security;
+alter table permits enable row level security;
+alter table leadership enable row level security;
+alter table suggestions enable row level security;
+
+create policy "public read mines" on mines for select using (true);
+create policy "admin write mines" on mines for all using (is_admin()) with check (is_admin());
+
+create policy "public read trusts" on trusts for select using (true);
+create policy "admin write trusts" on trusts for all using (is_admin()) with check (is_admin());
+
+create policy "public read projects" on projects for select using (true);
+create policy "admin write projects" on projects for all using (is_admin()) with check (is_admin());
+
+create policy "public read permits" on permits for select using (true);
+create policy "admin write permits" on permits for all using (is_admin()) with check (is_admin());
+
+create policy "public read leadership" on leadership for select using (true);
+create policy "admin write leadership" on leadership for all using (is_admin()) with check (is_admin());
+
+create policy "public submit suggestions" on suggestions for insert with check (true);
+create policy "admin manage suggestions" on suggestions for select using (is_admin());
+create policy "admin update suggestions" on suggestions for update using (is_admin());
+
+-- ============================================================
+-- Done. Next: Project Settings > API to grab your URL + anon key.
+-- ============================================================
