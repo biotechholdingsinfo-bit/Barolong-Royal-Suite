@@ -137,23 +137,36 @@ alter table permits enable row level security;
 alter table leadership enable row level security;
 alter table suggestions enable row level security;
 
+drop policy if exists "public read mines" on mines;
 create policy "public read mines" on mines for select using (true);
+drop policy if exists "admin write mines" on mines;
 create policy "admin write mines" on mines for all using (is_admin()) with check (is_admin());
 
+drop policy if exists "public read trusts" on trusts;
 create policy "public read trusts" on trusts for select using (true);
+drop policy if exists "admin write trusts" on trusts;
 create policy "admin write trusts" on trusts for all using (is_admin()) with check (is_admin());
 
+drop policy if exists "public read projects" on projects;
 create policy "public read projects" on projects for select using (true);
+drop policy if exists "admin write projects" on projects;
 create policy "admin write projects" on projects for all using (is_admin()) with check (is_admin());
 
+drop policy if exists "public read permits" on permits;
 create policy "public read permits" on permits for select using (true);
+drop policy if exists "admin write permits" on permits;
 create policy "admin write permits" on permits for all using (is_admin()) with check (is_admin());
 
+drop policy if exists "public read leadership" on leadership;
 create policy "public read leadership" on leadership for select using (true);
+drop policy if exists "admin write leadership" on leadership;
 create policy "admin write leadership" on leadership for all using (is_admin()) with check (is_admin());
 
+drop policy if exists "public submit suggestions" on suggestions;
 create policy "public submit suggestions" on suggestions for insert with check (true);
+drop policy if exists "admin manage suggestions" on suggestions;
 create policy "admin manage suggestions" on suggestions for select using (is_admin());
+drop policy if exists "admin update suggestions" on suggestions;
 create policy "admin update suggestions" on suggestions for update using (is_admin());
 
 -- ============================================================
